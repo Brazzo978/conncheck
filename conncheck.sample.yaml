@@ -1,0 +1,36 @@
+mode: standard
+privacy: standard
+output_dir: ""
+
+targets:
+  ping_targets:
+    - 1.1.1.1
+    - 8.8.8.8
+  dns_servers:
+    - 1.1.1.1
+    - 8.8.8.8
+    - 9.9.9.9
+  traceroute_targets:
+    - 1.1.1.1
+    - 8.8.8.8
+  mtu_targets:
+    - 1.1.1.1
+
+speedtest:
+  server_ids: []
+
+http:
+  endpoints:
+    - https://www.cloudflare.com
+
+bufferbloat:
+  download_url: https://speed.hetzner.de/100MB.bin
+  upload_url: ""
+
+thresholds:
+  ping_warn_ms: 50
+  ping_fail_ms: 100
+  packet_loss_warn_pct: 2
+  packet_loss_fail_pct: 5
+  bufferbloat_warn_ms: 40
+  bufferbloat_fail_ms: 80
