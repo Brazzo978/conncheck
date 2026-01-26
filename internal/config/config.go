@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 
 	"gopkg.in/yaml.v3"
@@ -37,7 +38,16 @@ type Thresholds struct {
 }
 
 type Speedtest struct {
-	ServerIDs []int `yaml:"server_ids"`
+	Local    SpeedtestCategory `yaml:"local"`
+	National SpeedtestCategory `yaml:"national"`
+	EU       SpeedtestCategory `yaml:"eu"`
+	US       SpeedtestCategory `yaml:"us"`
+}
+
+type SpeedtestCategory struct {
+	ServerIDs []int   `yaml:"server_ids"`
+	Runs      int     `yaml:"runs"`
+	Weight    float64 `yaml:"weight"`
 }
 
 type HTTPChecks struct {
@@ -69,7 +79,26 @@ func Default() Config {
 			BufferbloatFailMs: 80,
 		},
 		Speedtest: Speedtest{
-			ServerIDs: []int{},
+			Local: SpeedtestCategory{
+				ServerIDs: []int{},
+				Runs:      2,
+				Weight:    1,
+			},
+			National: SpeedtestCategory{
+				ServerIDs: []int{},
+				Runs:      2,
+				Weight:    1,
+			},
+			EU: SpeedtestCategory{
+				ServerIDs: []int{},
+				Runs:      1,
+				Weight:    1,
+			},
+			US: SpeedtestCategory{
+				ServerIDs: []int{},
+				Runs:      1,
+				Weight:    1,
+			},
 		},
 		HTTP: HTTPChecks{
 			Endpoints: []string{"https://www.cloudflare.com"},
@@ -82,19 +111,19 @@ func Default() Config {
 }
 
 func Load(path string) (Config, error) {
-	cfg := Default()
 	if path == "" {
 		path = DefaultConfigFilename
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return cfg, nil
+			return Config{}, fmt.Errorf("config file not found: %s", path)
 		}
-		return cfg, err
+		return Config{}, err
 	}
+	cfg := Config{}
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return cfg, err
+		return Config{}, err
 	}
 	return cfg, nil
 }

@@ -17,7 +17,22 @@ targets:
     - 1.1.1.1
 
 speedtest:
-  server_ids: []
+  local:
+    server_ids: []
+    runs: 2
+    weight: 1
+  national:
+    server_ids: []
+    runs: 2
+    weight: 1
+  eu:
+    server_ids: []
+    runs: 1
+    weight: 1
+  us:
+    server_ids: []
+    runs: 1
+    weight: 1
 
 http:
   endpoints:
