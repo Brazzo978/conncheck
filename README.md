@@ -28,11 +28,11 @@ Go build -o conncheck.exe ./cmd/conncheck
 
 ## Configuration
 
-Create `conncheck.yaml` to override defaults. A sample file is provided in `conncheck.sample.yaml`.
+Create `conncheck.yaml` before running (configuration is required). A sample file is provided in `conncheck.sample.yaml`.
 
 Key sections:
 - `targets`: ping targets, DNS servers, traceroute targets, MTU targets.
-- `speedtest`: list of Ookla server IDs.
+- `speedtest`: local/national/EU/US server IDs with per-category runs (weights are derived from distance).
 - `thresholds`: warning/fail thresholds for future alerting.
 
 ## Outputs
