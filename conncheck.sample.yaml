@@ -34,6 +34,70 @@ speedtest:
     runs: 1
     weight: 1
 
+speedtest_ui:
+  download_scale:
+    - min_mbps: 0
+      max_mbps: 20
+      label: "Sofferenza 🐢"
+      description: "ADSL / 3G / sat base / FWA molto distante"
+    - min_mbps: 20
+      max_mbps: 200
+      label: "Si vive 🚶‍♂️"
+      description: "VDSL / 4G medio / FWA ok / sat decente"
+    - min_mbps: 200
+      max_mbps: 600
+      label: "IDEALE ⭐🚀"
+      description: "Uso normale + streaming + call + gaming senza pensieri"
+    - min_mbps: 600
+      max_mbps: 1000
+      label: "Scheggia ⚡"
+      description: "5G serio / FTTH buona"
+    - min_mbps: 1000
+      max_mbps: 2300
+      label: "Fibra Ottima 👑"
+      description: "FTTH 1–2.5G"
+    - min_mbps: 2300
+      max_mbps: 0
+      label: "Fibra Divina 🔱✨"
+      description: "FTTH 2.5G+ / roba da datacenter a casa"
+  upload_scale:
+    - min_mbps: 0
+      max_mbps: 2
+      label: "Sofferenza 🐢"
+      description: "ADSL / sat base / 4G scarso / FWA lontana"
+    - min_mbps: 2
+      max_mbps: 20
+      label: "Si vive 🚶‍♂️"
+      description: "VDSL / 4G medio / FWA ok / sat decente"
+    - min_mbps: 20
+      max_mbps: 100
+      label: "Spinge 🚗💨"
+      description: "4G top / 5G meh / Starlink / FWA buona"
+    - min_mbps: 100
+      max_mbps: 300
+      label: "IDEALE ⭐🚀"
+      description: "Upload adatto ad ogni uso"
+    - min_mbps: 300
+      max_mbps: 500
+      label: "FTTH Buona ⚡"
+      description: "Profili fibra moderni (300/500 up)"
+    - min_mbps: 500
+      max_mbps: 1000
+      label: "FTTH Ottima 👑"
+      description: "500/1000 up"
+    - min_mbps: 1000
+      max_mbps: 2500
+      label: "FTTH Esagerata 🦾"
+      description: "1–2.5G up"
+    - min_mbps: 2500
+      max_mbps: 0
+      label: "FTTH Divina 🔱✨"
+      description: "10G (fino a ~10.000 up)"
+  comparisons:
+    national_pct: 93
+    eu_pct: 55
+    us_pct: 35
+
 http:
   endpoints:
     - https://www.cloudflare.com
