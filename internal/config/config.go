@@ -17,6 +17,7 @@ type Config struct {
 	Targets     TargetsConfig `yaml:"targets"`
 	Thresholds  Thresholds    `yaml:"thresholds"`
 	Speedtest   Speedtest     `yaml:"speedtest"`
+	SpeedtestUI SpeedtestUI   `yaml:"speedtest_ui"`
 	HTTP        HTTPChecks    `yaml:"http"`
 	Bufferbloat Bufferbloat   `yaml:"bufferbloat"`
 }
@@ -48,6 +49,25 @@ type SpeedtestCategory struct {
 	ServerIDs []int   `yaml:"server_ids"`
 	Runs      int     `yaml:"runs"`
 	Weight    float64 `yaml:"weight"`
+}
+
+type SpeedtestUI struct {
+	DownloadScale []SpeedtestScale `yaml:"download_scale"`
+	UploadScale   []SpeedtestScale `yaml:"upload_scale"`
+	Comparisons   SpeedtestCompare `yaml:"comparisons"`
+}
+
+type SpeedtestScale struct {
+	MinMbps     float64 `yaml:"min_mbps"`
+	MaxMbps     float64 `yaml:"max_mbps"`
+	Label       string  `yaml:"label"`
+	Description string  `yaml:"description"`
+}
+
+type SpeedtestCompare struct {
+	NationalPct float64 `yaml:"national_pct"`
+	EUPct       float64 `yaml:"eu_pct"`
+	USPct       float64 `yaml:"us_pct"`
 }
 
 type HTTPChecks struct {
@@ -98,6 +118,101 @@ func Default() Config {
 				ServerIDs: []int{},
 				Runs:      1,
 				Weight:    1,
+			},
+		},
+		SpeedtestUI: SpeedtestUI{
+			DownloadScale: []SpeedtestScale{
+				{
+					MinMbps:     0,
+					MaxMbps:     20,
+					Label:       "Sofferenza 🐢",
+					Description: "ADSL / 3G / sat base / FWA molto distante",
+				},
+				{
+					MinMbps:     20,
+					MaxMbps:     200,
+					Label:       "Si vive 🚶‍♂️",
+					Description: "VDSL / 4G medio / FWA ok / sat decente",
+				},
+				{
+					MinMbps:     200,
+					MaxMbps:     600,
+					Label:       "IDEALE ⭐🚀",
+					Description: "Uso normale + streaming + call + gaming senza pensieri",
+				},
+				{
+					MinMbps:     600,
+					MaxMbps:     1000,
+					Label:       "Scheggia ⚡",
+					Description: "5G serio / FTTH buona",
+				},
+				{
+					MinMbps:     1000,
+					MaxMbps:     2300,
+					Label:       "Fibra Ottima 👑",
+					Description: "FTTH 1–2.5G",
+				},
+				{
+					MinMbps:     2300,
+					MaxMbps:     0,
+					Label:       "Fibra Divina 🔱✨",
+					Description: "FTTH 2.5G+ / roba da datacenter a casa",
+				},
+			},
+			UploadScale: []SpeedtestScale{
+				{
+					MinMbps:     0,
+					MaxMbps:     2,
+					Label:       "Sofferenza 🐢",
+					Description: "ADSL / sat base / 4G scarso / FWA lontana",
+				},
+				{
+					MinMbps:     2,
+					MaxMbps:     20,
+					Label:       "Si vive 🚶‍♂️",
+					Description: "VDSL / 4G medio / FWA ok / sat decente",
+				},
+				{
+					MinMbps:     20,
+					MaxMbps:     100,
+					Label:       "Spinge 🚗💨",
+					Description: "4G top / 5G meh / Starlink / FWA buona",
+				},
+				{
+					MinMbps:     100,
+					MaxMbps:     300,
+					Label:       "IDEALE ⭐🚀",
+					Description: "Upload adatto ad ogni uso",
+				},
+				{
+					MinMbps:     300,
+					MaxMbps:     500,
+					Label:       "FTTH Buona ⚡",
+					Description: "Profili fibra moderni (300/500 up)",
+				},
+				{
+					MinMbps:     500,
+					MaxMbps:     1000,
+					Label:       "FTTH Ottima 👑",
+					Description: "500/1000 up",
+				},
+				{
+					MinMbps:     1000,
+					MaxMbps:     2500,
+					Label:       "FTTH Esagerata 🦾",
+					Description: "1–2.5G up",
+				},
+				{
+					MinMbps:     2500,
+					MaxMbps:     0,
+					Label:       "FTTH Divina 🔱✨",
+					Description: "10G (fino a ~10.000 up)",
+				},
+			},
+			Comparisons: SpeedtestCompare{
+				NationalPct: 93,
+				EUPct:       55,
+				USPct:       35,
 			},
 		},
 		HTTP: HTTPChecks{

@@ -60,7 +60,7 @@ func main() {
 	if err != nil {
 		logger.Fatalf("write xml failed: %v", err)
 	}
-	htmlPath, err := report.WriteHTML(outDir, result)
+	htmlPath, err := report.WriteHTML(outDir, result, cfg)
 	if err != nil {
 		logger.Fatalf("write html failed: %v", err)
 	}

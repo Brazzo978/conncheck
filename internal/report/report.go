@@ -5,9 +5,12 @@ import (
 	"encoding/xml"
 	"fmt"
 	"html/template"
+	"math"
 	"os"
 	"path/filepath"
+	"strconv"
 
+	"conncheck/internal/config"
 	"conncheck/internal/model"
 )
 
@@ -29,7 +32,7 @@ func WriteXML(outDir string, result model.Result) (string, error) {
 	return path, os.WriteFile(path, data, 0o644)
 }
 
-func WriteHTML(outDir string, result model.Result) (string, error) {
+func WriteHTML(outDir string, result model.Result, cfg config.Config) (string, error) {
 	tpl := template.Must(template.New("report").Parse(htmlTemplate))
 	path := filepath.Join(outDir, "report.html")
 	file, err := os.Create(path)
@@ -38,10 +41,174 @@ func WriteHTML(outDir string, result model.Result) (string, error) {
 	}
 	defer file.Close()
 
-	if err := tpl.Execute(file, result); err != nil {
+	view := reportView{
+		Result:    result,
+		Speedtest: buildSpeedtestView(result, cfg.SpeedtestUI),
+	}
+	if err := tpl.Execute(file, view); err != nil {
 		return "", err
 	}
 	return path, nil
+}
+
+type reportView struct {
+	model.Result
+	Speedtest *speedtestView
+}
+
+type speedtestView struct {
+	Available            bool
+	LocalDownloadMbps    float64
+	LocalUploadMbps      float64
+	DownloadMaxMbps      float64
+	UploadMaxMbps        float64
+	DownloadScale        []speedtestScaleView
+	UploadScale          []speedtestScaleView
+	DownloadCurrentScale *speedtestScaleView
+	UploadCurrentScale   *speedtestScaleView
+	Comparisons          []speedtestComparisonView
+}
+
+type speedtestScaleView struct {
+	MinMbps     float64
+	MaxMbps     float64
+	Label       string
+	Description string
+}
+
+type speedtestComparisonView struct {
+	Label     string
+	Percent   float64
+	LossPct   float64
+	SpeedMbps float64
+}
+
+func buildSpeedtestView(result model.Result, cfg config.SpeedtestUI) *speedtestView {
+	var speedtestResult *model.TestResult
+	for _, test := range result.Tests {
+		if test.Name == "speedtest" {
+			speedtestResult = &test
+			break
+		}
+	}
+	if speedtestResult == nil {
+		return nil
+	}
+
+	localDownBps, hasLocalDown := metricFloat(speedtestResult.Metrics, "local_avg_down_bps")
+	localUpBps, hasLocalUp := metricFloat(speedtestResult.Metrics, "local_avg_up_bps")
+	localDownMbps := localDownBps / 1_000_000
+	localUpMbps := localUpBps / 1_000_000
+	view := &speedtestView{
+		Available:         hasLocalDown || hasLocalUp,
+		LocalDownloadMbps: localDownMbps,
+		LocalUploadMbps:   localUpMbps,
+	}
+
+	view.DownloadScale = toScaleView(cfg.DownloadScale)
+	view.UploadScale = toScaleView(cfg.UploadScale)
+	view.DownloadMaxMbps = maxScaleValue(view.DownloadScale, localDownMbps)
+	view.UploadMaxMbps = maxScaleValue(view.UploadScale, localUpMbps)
+	if hasLocalDown {
+		view.DownloadCurrentScale = matchScale(view.DownloadScale, localDownMbps)
+	}
+	if hasLocalUp {
+		view.UploadCurrentScale = matchScale(view.UploadScale, localUpMbps)
+	}
+
+	if hasLocalDown {
+		view.Comparisons = buildComparisons(localDownMbps, speedtestResult.Metrics, cfg.Comparisons)
+	}
+
+	return view
+}
+
+func metricFloat(metrics map[string]string, key string) (float64, bool) {
+	value, ok := metrics[key]
+	if !ok {
+		return 0, false
+	}
+	parsed, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return 0, false
+	}
+	return parsed, true
+}
+
+func toScaleView(scales []config.SpeedtestScale) []speedtestScaleView {
+	views := make([]speedtestScaleView, 0, len(scales))
+	for _, scale := range scales {
+		views = append(views, speedtestScaleView{
+			MinMbps:     scale.MinMbps,
+			MaxMbps:     scale.MaxMbps,
+			Label:       scale.Label,
+			Description: scale.Description,
+		})
+	}
+	return views
+}
+
+func maxScaleValue(scales []speedtestScaleView, current float64) float64 {
+	maxValue := current
+	for _, scale := range scales {
+		if scale.MaxMbps > maxValue {
+			maxValue = scale.MaxMbps
+		}
+		if scale.MaxMbps == 0 && scale.MinMbps > maxValue {
+			maxValue = scale.MinMbps
+		}
+	}
+	if maxValue <= 0 {
+		return 100
+	}
+	return math.Ceil(maxValue)
+}
+
+func matchScale(scales []speedtestScaleView, value float64) *speedtestScaleView {
+	for _, scale := range scales {
+		if value >= scale.MinMbps && (scale.MaxMbps == 0 || value < scale.MaxMbps) {
+			match := scale
+			return &match
+		}
+	}
+	if len(scales) > 0 {
+		match := scales[len(scales)-1]
+		return &match
+	}
+	return nil
+}
+
+func buildComparisons(localMbps float64, metrics map[string]string, cfg config.SpeedtestCompare) []speedtestComparisonView {
+	comparisons := []struct {
+		label       string
+		metricKey   string
+		fallbackPct float64
+	}{
+		{label: "Nazionali", metricKey: "national_avg_down_bps", fallbackPct: cfg.NationalPct},
+		{label: "Europei", metricKey: "eu_avg_down_bps", fallbackPct: cfg.EUPct},
+		{label: "USA", metricKey: "us_avg_down_bps", fallbackPct: cfg.USPct},
+	}
+	views := []speedtestComparisonView{}
+	for _, comparison := range comparisons {
+		percent := 0.0
+		if localMbps > 0 {
+			if downBps, ok := metricFloat(metrics, comparison.metricKey); ok {
+				percent = (downBps / 1_000_000) / localMbps * 100
+			} else if comparison.fallbackPct > 0 {
+				percent = comparison.fallbackPct
+			}
+		}
+		if percent <= 0 {
+			continue
+		}
+		views = append(views, speedtestComparisonView{
+			Label:     comparison.label,
+			Percent:   math.Round(percent),
+			LossPct:   math.Round(100 - percent),
+			SpeedMbps: localMbps * percent / 100,
+		})
+	}
+	return views
 }
 
 const htmlTemplate = `<!doctype html>
@@ -60,6 +227,15 @@ section { background: #fff; padding: 16px; margin-top: 16px; border-radius: 12px
 .status-SKIPPED { color: #6b7280; }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
 .card { background: #f9fafb; padding: 12px; border-radius: 8px; border: 1px solid #e5e7eb; }
+.slider-block { margin-top: 8px; }
+.slider-block input[type=range] { width: 100%; accent-color: #2563eb; }
+.slider-value { font-weight: 600; margin-top: 6px; }
+.slider-desc { margin: 4px 0 8px; color: #4b5563; }
+.scale-list { list-style: none; padding-left: 0; margin: 8px 0 0; }
+.scale-list li { margin-bottom: 8px; }
+.comparison { margin-top: 12px; }
+.pulse { animation: pulse 2s ease-in-out infinite; }
+@keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.02); } 100% { transform: scale(1); } }
 small { color: #6b7280; }
 </style>
 </head>
@@ -88,6 +264,58 @@ small { color: #6b7280; }
   <p>No findings were recorded.</p>
   {{ end }}
 </section>
+{{ if .Speedtest }}
+<section>
+  <h2>Scala Speedtest (medie server locali)</h2>
+  {{ if .Speedtest.Available }}
+  <div class="grid">
+    <div class="card">
+      <h3>Download medio</h3>
+      {{ if .Speedtest.DownloadCurrentScale }}
+      <div class="slider-block">
+        <input type="range" min="0" max="{{ printf "%.0f" .Speedtest.DownloadMaxMbps }}" value="{{ printf "%.0f" .Speedtest.LocalDownloadMbps }}" disabled />
+        <div class="slider-value pulse">{{ printf "%.1f" .Speedtest.LocalDownloadMbps }} Mbps — {{ .Speedtest.DownloadCurrentScale.Label }}</div>
+        <div class="slider-desc">{{ .Speedtest.DownloadCurrentScale.Description }}</div>
+      </div>
+      {{ end }}
+      <ul class="scale-list">
+        {{ range .Speedtest.DownloadScale }}
+        <li><strong>{{ printf "%.0f" .MinMbps }}{{ if gt .MaxMbps 0 }}–{{ printf "%.0f" .MaxMbps }}{{ else }}+{{ end }} Mbps</strong> — {{ .Label }}<br/><small>{{ .Description }}</small></li>
+        {{ end }}
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Upload medio</h3>
+      {{ if .Speedtest.UploadCurrentScale }}
+      <div class="slider-block">
+        <input type="range" min="0" max="{{ printf "%.0f" .Speedtest.UploadMaxMbps }}" value="{{ printf "%.0f" .Speedtest.LocalUploadMbps }}" disabled />
+        <div class="slider-value pulse">{{ printf "%.1f" .Speedtest.LocalUploadMbps }} Mbps — {{ .Speedtest.UploadCurrentScale.Label }}</div>
+        <div class="slider-desc">{{ .Speedtest.UploadCurrentScale.Description }}</div>
+      </div>
+      {{ end }}
+      <ul class="scale-list">
+        {{ range .Speedtest.UploadScale }}
+        <li><strong>{{ printf "%.0f" .MinMbps }}{{ if gt .MaxMbps 0 }}–{{ printf "%.0f" .MaxMbps }}{{ else }}+{{ end }} Mbps</strong> — {{ .Label }}<br/><small>{{ .Description }}</small></li>
+        {{ end }}
+      </ul>
+    </div>
+  </div>
+  {{ if .Speedtest.Comparisons }}
+  <div class="card" style="margin-top: 12px;">
+    <h3>Variazioni rispetto ai locali</h3>
+    {{ range .Speedtest.Comparisons }}
+    <div class="comparison">
+      <div><strong>{{ .Label }}</strong>: {{ printf "%.0f" .Percent }}% ({{ printf "%.0f" .SpeedMbps }} Mbps, perdita {{ printf "%.0f" .LossPct }}%)</div>
+      <input type="range" min="0" max="100" value="{{ printf "%.0f" .Percent }}" disabled />
+    </div>
+    {{ end }}
+  </div>
+  {{ end }}
+  {{ else }}
+  <p>Speedtest non disponibile o senza dati locali.</p>
+  {{ end }}
+</section>
+{{ end }}
 <section>
   <h2>Test Results</h2>
   {{ range .Tests }}
