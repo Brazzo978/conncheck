@@ -17,22 +17,51 @@ targets:
     - 1.1.1.1
 
 speedtest:
+  # LOCAL (preferred): Nord Italia ✅
   local:
-    server_ids: []
+    server_ids:
+      - 11427 # EOLO - Milan, Italy | Trace: test.eolo.it
+      - 60884 # CDLAN - Milan, Italy | Trace: speedtest.cdlan.net
+      - 4302  # Vodafone IT - Milan, Italy | Trace: speedtest.vodafone.it
     runs: 2
     weight: 1
+
+  # LOCAL variant: Centro Italia (enable if needed)
+  # local_center:
+  #   server_ids: []
+  #   runs: 2
+  #   weight: 1
+
+  # LOCAL variant: Sud Italia (enable if needed)
+  # local_south:
+  #   server_ids: []
+  #   runs: 2
+  #   weight: 1
+
   national:
-    server_ids: []
+    server_ids:
+      - 3243  # TIM SpA - Rome, Italy | Trace: speedtestrm1.telecomitalia.it
+      - 11427 # EOLO - Milan, Italy | Trace: test.eolo.it
     runs: 2
     weight: 1
+
   eu:
-    server_ids: []
+    server_ids:
+      - 31120 # RETN - Frankfurt, Germany | Trace: speedtest-fkt-eqx.retn.net
+      - 36998 # RETN - Amsterdam, Netherlands | Trace: speedtest-ams.retn.net
+      # Optional redundancy (enable if you want 2 servers per city):
+      # - 35692 # Clouvider - Frankfurt am Main, Germany | Trace: fra.speedtest.clouvider.net
+      # - 35058 # Clouvider - Amsterdam, Netherlands | Trace: ams.speedtest.clouvider.net
     runs: 1
     weight: 1
+
   us:
-    server_ids: []
+    server_ids:
+      - 50463 # KamaTera, Inc. - Chicago, IL, United States | Trace: speedtest.us-ch.kamatera.com
+      - 47872 # Tier.Net - Ashburn, VA, United States | Trace: va-speedtest.tier.net
     runs: 1
     weight: 1
+
 
 http:
   endpoints:
