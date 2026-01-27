@@ -10,6 +10,10 @@ targets:
     - 1.1.1.1
     - 8.8.8.8
     - 9.9.9.9
+  dns_domains:
+    - www.google.com
+    - www.cloudflare.com
+    - www.wikipedia.org
   traceroute_targets:
     - 1.1.1.1
     - 8.8.8.8
