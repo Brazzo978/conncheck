@@ -25,7 +25,7 @@ func (e *Engine) Run(ctx context.Context) (model.Result, error) {
 		Version:   model.Version,
 		StartedAt: time.Now(),
 		Summary: model.Summary{
-			StatusCounts: map[string]int{},
+			StatusCounts: model.IntMap{},
 		},
 	}
 

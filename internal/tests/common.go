@@ -13,7 +13,7 @@ func baseResult(name string) model.TestResult {
 	return model.TestResult{
 		Name:     name,
 		Status:   StatusSkipped,
-		Metrics:  map[string]string{},
+		Metrics:  model.StringMap{},
 		Findings: []model.Finding{},
 		Evidence: []model.Evidence{},
 	}

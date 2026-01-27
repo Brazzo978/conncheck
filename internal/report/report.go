@@ -123,7 +123,7 @@ func buildSpeedtestView(result model.Result, cfg config.SpeedtestUI) *speedtestV
 	return view
 }
 
-func metricFloat(metrics map[string]string, key string) (float64, bool) {
+func metricFloat(metrics model.StringMap, key string) (float64, bool) {
 	value, ok := metrics[key]
 	if !ok {
 		return 0, false
@@ -178,7 +178,7 @@ func matchScale(scales []speedtestScaleView, value float64) *speedtestScaleView 
 	return nil
 }
 
-func buildComparisons(localMbps float64, metrics map[string]string, cfg config.SpeedtestCompare) []speedtestComparisonView {
+func buildComparisons(localMbps float64, metrics model.StringMap, cfg config.SpeedtestCompare) []speedtestComparisonView {
 	comparisons := []struct {
 		label       string
 		metricKey   string
