@@ -8,7 +8,9 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
+	"strings"
 
 	"conncheck/internal/config"
 	"conncheck/internal/model"
@@ -44,6 +46,7 @@ func WriteHTML(outDir string, result model.Result, cfg config.Config) (string, e
 	view := reportView{
 		Result:    result,
 		Speedtest: buildSpeedtestView(result, cfg.SpeedtestUI),
+		DNS:       buildDNSView(result),
 	}
 	if err := tpl.Execute(file, view); err != nil {
 		return "", err
@@ -54,6 +57,7 @@ func WriteHTML(outDir string, result model.Result, cfg config.Config) (string, e
 type reportView struct {
 	model.Result
 	Speedtest *speedtestView
+	DNS       *dnsBenchView
 }
 
 type speedtestView struct {
@@ -81,6 +85,21 @@ type speedtestComparisonView struct {
 	Percent   float64
 	LossPct   float64
 	SpeedMbps float64
+}
+
+type dnsBenchView struct {
+	Available bool
+	Domains   []string
+	Servers   []dnsServerView
+	MaxAvgMs  float64
+}
+
+type dnsServerView struct {
+	Server  string
+	AvgMs   float64
+	Percent float64
+	Success int
+	Fail    int
 }
 
 func buildSpeedtestView(result model.Result, cfg config.SpeedtestUI) *speedtestView {
@@ -211,6 +230,77 @@ func buildComparisons(localMbps float64, metrics model.StringMap, cfg config.Spe
 	return views
 }
 
+func buildDNSView(result model.Result) *dnsBenchView {
+	var dnsResult *model.TestResult
+	for _, test := range result.Tests {
+		if test.Name == "dns_benchmark" {
+			dnsResult = &test
+			break
+		}
+	}
+	if dnsResult == nil {
+		return nil
+	}
+
+	view := &dnsBenchView{}
+	if domains, ok := dnsResult.Metrics["dns_domains"]; ok && domains != "" {
+		view.Domains = strings.Split(domains, ",")
+	}
+
+	avgValues := map[string]float64{}
+	successValues := map[string]int{}
+	failValues := map[string]int{}
+	for key, value := range dnsResult.Metrics {
+		if strings.HasPrefix(key, "dns_avg_ms.") {
+			server := strings.TrimPrefix(key, "dns_avg_ms.")
+			if parsed, err := strconv.ParseFloat(value, 64); err == nil {
+				avgValues[server] = parsed
+			}
+		}
+		if strings.HasPrefix(key, "dns_success.") {
+			server := strings.TrimPrefix(key, "dns_success.")
+			if parsed, err := strconv.Atoi(value); err == nil {
+				successValues[server] = parsed
+			}
+		}
+		if strings.HasPrefix(key, "dns_fail.") {
+			server := strings.TrimPrefix(key, "dns_fail.")
+			if parsed, err := strconv.Atoi(value); err == nil {
+				failValues[server] = parsed
+			}
+		}
+	}
+
+	for server, avg := range avgValues {
+		if avg > view.MaxAvgMs {
+			view.MaxAvgMs = avg
+		}
+		view.Servers = append(view.Servers, dnsServerView{
+			Server:  server,
+			AvgMs:   avg,
+			Success: successValues[server],
+			Fail:    failValues[server],
+		})
+	}
+
+	if len(view.Servers) > 1 {
+		sort.Slice(view.Servers, func(i, j int) bool {
+			return view.Servers[i].AvgMs < view.Servers[j].AvgMs
+		})
+	}
+
+	if view.MaxAvgMs > 0 {
+		for i := range view.Servers {
+			view.Servers[i].Percent = view.Servers[i].AvgMs / view.MaxAvgMs * 100
+		}
+	}
+
+	if len(view.Servers) > 0 {
+		view.Available = true
+	}
+	return view
+}
+
 const htmlTemplate = `<!doctype html>
 <html lang="en">
 <head>
@@ -235,6 +325,11 @@ section { background: #fff; padding: 16px; margin-top: 16px; border-radius: 12px
 .scale-list li { margin-bottom: 8px; }
 .comparison { margin-top: 12px; }
 .pulse { animation: pulse 2s ease-in-out infinite; }
+.dns-row { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
+.dns-label { width: 180px; font-weight: 600; }
+.dns-bar { position: relative; flex: 1; height: 24px; background: #e5e7eb; border-radius: 999px; overflow: hidden; }
+.dns-bar-fill { height: 100%; background: #60a5fa; border-radius: 999px; }
+.dns-bar span { position: absolute; left: 10px; top: 3px; font-size: 12px; color: #111827; }
 @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.02); } 100% { transform: scale(1); } }
 small { color: #6b7280; }
 </style>
@@ -313,6 +408,29 @@ small { color: #6b7280; }
   {{ end }}
   {{ else }}
   <p>Speedtest non disponibile o senza dati locali.</p>
+  {{ end }}
+</section>
+{{ end }}
+{{ if .DNS }}
+<section>
+  <h2>DNS Benchmark</h2>
+  {{ if .DNS.Available }}
+  {{ if .DNS.Domains }}
+  <p><small>Domains: {{ range $index, $domain := .DNS.Domains }}{{ if $index }}, {{ end }}{{ $domain }}{{ end }}</small></p>
+  {{ end }}
+  <div>
+    {{ range .DNS.Servers }}
+    <div class="dns-row">
+      <div class="dns-label">{{ .Server }}</div>
+      <div class="dns-bar">
+        <div class="dns-bar-fill" style="width: {{ printf "%.0f" .Percent }}%;"></div>
+        <span>{{ printf "%.1f" .AvgMs }} ms ({{ .Success }} ok, {{ .Fail }} fail)</span>
+      </div>
+    </div>
+    {{ end }}
+  </div>
+  {{ else }}
+  <p>DNS benchmark non disponibile o senza dati sufficienti.</p>
   {{ end }}
 </section>
 {{ end }}
