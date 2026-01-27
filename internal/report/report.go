@@ -280,7 +280,7 @@ small { color: #6b7280; }
       {{ end }}
       <ul class="scale-list">
         {{ range .Speedtest.DownloadScale }}
-        <li><strong>{{ printf "%.0f" .MinMbps }}{{ if gt .MaxMbps 0 }}–{{ printf "%.0f" .MaxMbps }}{{ else }}+{{ end }} Mbps</strong> — {{ .Label }}<br/><small>{{ .Description }}</small></li>
+        <li><strong>{{ printf "%.0f" .MinMbps }}{{ if gt .MaxMbps 0.0 }}–{{ printf "%.0f" .MaxMbps }}{{ else }}+{{ end }} Mbps</strong> — {{ .Label }}<br/><small>{{ .Description }}</small></li>
         {{ end }}
       </ul>
     </div>
@@ -295,7 +295,7 @@ small { color: #6b7280; }
       {{ end }}
       <ul class="scale-list">
         {{ range .Speedtest.UploadScale }}
-        <li><strong>{{ printf "%.0f" .MinMbps }}{{ if gt .MaxMbps 0 }}–{{ printf "%.0f" .MaxMbps }}{{ else }}+{{ end }} Mbps</strong> — {{ .Label }}<br/><small>{{ .Description }}</small></li>
+        <li><strong>{{ printf "%.0f" .MinMbps }}{{ if gt .MaxMbps 0.0 }}–{{ printf "%.0f" .MaxMbps }}{{ else }}+{{ end }} Mbps</strong> — {{ .Label }}<br/><small>{{ .Description }}</small></li>
         {{ end }}
       </ul>
     </div>
