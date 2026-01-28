@@ -38,7 +38,7 @@ speedtest:
       - 60884 # CDLAN - Milan, Italy | Trace: speedtest.cdlan.net
       - 4302  # Vodafone IT - Milan, Italy | Trace: speedtest.vodafone.it
     runs: 2
-    weight: 1,6
+    weight: 1.6
 
   # LOCAL variant: Sud Italia (enable if needed)
   # local:
@@ -51,7 +51,7 @@ speedtest:
       - 3243  # TIM SpA - Rome, Italy | Trace: speedtestrm1.telecomitalia.it
       - 11427 # EOLO - Milan, Italy | Trace: test.eolo.it
     runs: 2
-    weight: 1,4
+    weight: 1.4
 
   eu:
     server_ids:
@@ -61,7 +61,7 @@ speedtest:
       # - 35692 # Clouvider - Frankfurt am Main, Germany | Trace: fra.speedtest.clouvider.net
       # - 35058 # Clouvider - Amsterdam, Netherlands | Trace: ams.speedtest.clouvider.net
     runs: 1
-    weight: 1,2
+    weight: 1.2
 
   us:
     server_ids:
