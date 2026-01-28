@@ -23,11 +23,12 @@ type Config struct {
 }
 
 type TargetsConfig struct {
-	PingTargets []string `yaml:"ping_targets"`
-	DNSServers  []string `yaml:"dns_servers"`
-	DNSDomains  []string `yaml:"dns_domains"`
-	Traceroute  []string `yaml:"traceroute_targets"`
-	MTUTargets  []string `yaml:"mtu_targets"`
+	PingTargets         []string `yaml:"ping_targets"`
+	DNSServers          []string `yaml:"dns_servers"`
+	DNSDomains          []string `yaml:"dns_domains"`
+	DNSQueriesPerDomain int      `yaml:"dns_queries_per_domain"`
+	Traceroute          []string `yaml:"traceroute_targets"`
+	MTUTargets          []string `yaml:"mtu_targets"`
 }
 
 type Thresholds struct {
@@ -86,11 +87,12 @@ func Default() Config {
 		Privacy:   "standard",
 		OutputDir: "",
 		Targets: TargetsConfig{
-			PingTargets: []string{"1.1.1.1", "8.8.8.8"},
-			DNSServers:  []string{"1.1.1.1", "8.8.8.8", "9.9.9.9"},
-			DNSDomains:  []string{"www.google.com", "www.cloudflare.com", "www.wikipedia.org"},
-			Traceroute:  []string{"1.1.1.1", "8.8.8.8"},
-			MTUTargets:  []string{"1.1.1.1"},
+			PingTargets:         []string{"1.1.1.1", "8.8.8.8"},
+			DNSServers:          []string{"1.1.1.1", "8.8.8.8", "9.9.9.9"},
+			DNSDomains:          []string{"www.google.com", "www.cloudflare.com", "www.wikipedia.org"},
+			DNSQueriesPerDomain: 3,
+			Traceroute:          []string{"1.1.1.1", "8.8.8.8"},
+			MTUTargets:          []string{"1.1.1.1"},
 		},
 		Thresholds: Thresholds{
 			PingWarnMs:        50,

@@ -53,8 +53,13 @@ func (d *DNSBench) Run(ctx context.Context) model.TestResult {
 	configServers := d.cfg.Targets.DNSServers
 	allServers := uniqueServers(append(append([]string{}, systemServers...), configServers...))
 
+	queriesPerDomain := d.cfg.Targets.DNSQueriesPerDomain
+	if queriesPerDomain <= 0 {
+		queriesPerDomain = 3
+	}
+
 	result.Metrics["dns_domains"] = joinList(domains)
-	result.Metrics["dns_queries_per_domain"] = "3"
+	result.Metrics["dns_queries_per_domain"] = strconv.Itoa(queriesPerDomain)
 	result.Metrics["dns_timeout_ms"] = "2000"
 	result.Metrics["dhcp_dns_servers"] = joinList(systemServers)
 	result.Metrics["config_dns_servers"] = joinList(configServers)
@@ -77,7 +82,7 @@ func (d *DNSBench) Run(ctx context.Context) model.TestResult {
 		serverFail := 0
 		var totalLatency time.Duration
 		for _, domain := range domains {
-			for i := 0; i < 3; i++ {
+			for i := 0; i < queriesPerDomain; i++ {
 				latency, err := dnsLookupLatency(ctx, server, domain, 2*time.Second)
 				if err != nil {
 					serverFail++

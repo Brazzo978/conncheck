@@ -24,6 +24,7 @@ targets:
     - www.theverge.com
     - www.ofmodemsandmen.com
     - old.reddit.com
+  dns_queries_per_domain: 3
   traceroute_targets:
     - 1.1.1.1
     - 8.8.8.8
