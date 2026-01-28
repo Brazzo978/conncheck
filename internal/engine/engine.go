@@ -49,6 +49,11 @@ func (e *Engine) Run(ctx context.Context) (model.Result, error) {
 		default:
 		}
 
+		if !e.Cfg.Tests.IsEnabled(test.Name()) {
+			e.log("Skipping %s (disabled in config).", test.Name())
+			continue
+		}
+
 		e.log("Running %s...", test.Name())
 		res := test.Run(ctx)
 		result.Tests = append(result.Tests, res)
