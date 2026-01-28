@@ -5,14 +5,14 @@ output_dir: ""
 tests:
   preflight: true
   lan_health: true
-  dualstack: true
+  dualstack: false  #bad implementation yet
   dns_benchmark: true
   mtu_pmtu: true
-  latency: true
-  bufferbloat: true
+  latency: false #bad implementation yet
+  bufferbloat: false #bad implementation yet
   speedtest: true
-  traceroute: true
-  http_check: true
+  traceroute: false #bad implementation yet
+  http_check: false #bad implementation yet
 
 targets:
   ping_targets:
