@@ -64,7 +64,7 @@ targets:
     - www.icann.org
     - www.iana.org
     
-  dns_queries_per_domain: 70
+  dns_queries_per_domain: 50
   traceroute_targets:
     - 1.1.1.1
     - 8.8.8.8
