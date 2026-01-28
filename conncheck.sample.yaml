@@ -98,29 +98,21 @@ speedtest_ui:
       description: "FTTH 2.5G+ / roba da datacenter a casa"
   upload_scale:
     - min_mbps: 0
-      max_mbps: 2
+      max_mbps: 20
       label: "Sofferenza 🐢"
       description: "ADSL / sat base / 4G scarso / FWA lontana"
-    - min_mbps: 2
-      max_mbps: 20
-      label: "Si vive 🚶‍♂️"
-      description: "VDSL / 4G medio / FWA ok / sat decente"
     - min_mbps: 20
       max_mbps: 100
-      label: "Spinge 🚗💨"
+      label: "Si vive 🚶‍♂️"
       description: "4G top / 5G meh / Starlink / FWA buona"
     - min_mbps: 100
       max_mbps: 300
       label: "IDEALE ⭐🚀"
       description: "Upload adatto ad ogni uso"
     - min_mbps: 300
-      max_mbps: 500
-      label: "FTTH Buona ⚡"
-      description: "Profili fibra moderni (300/500 up)"
-    - min_mbps: 500
       max_mbps: 1000
-      label: "FTTH Ottima 👑"
-      description: "500/1000 up"
+      label: "FTTH Buona ⚡"
+      description: "Profili fibra moderni (300/500/1000 up)"
     - min_mbps: 1000
       max_mbps: 2500
       label: "FTTH Esagerata 🦾"
@@ -128,7 +120,7 @@ speedtest_ui:
     - min_mbps: 2500
       max_mbps: 0
       label: "FTTH Divina 🔱✨"
-      description: "10G (fino a ~10.000 up)"
+      description: "FTTH 2.5G+ / roba da datacenter a casa"
   comparisons:
     national_pct: 93
     eu_pct: 55
