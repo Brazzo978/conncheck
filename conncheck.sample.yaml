@@ -28,6 +28,41 @@ targets:
     - www.arelion.com
     - bgp.tools
     - www.lumen.com
+    - www.youtube.com
+    - www.microsoft.com
+    - www.office.com
+    - www.apple.com
+    - www.cloudflare.com
+    - www.amazon.com
+    - www.netflix.com
+    - www.spotify.com
+    - github.com
+    - stackoverflow.com
+    - www.mozilla.org
+    - www.docker.com
+    - www.npmjs.com
+    - www.bbc.co.uk
+    - www.nytimes.com
+    - www.twitch.tv
+    - www.disneyplus.com
+    - www.aturnofthenut.com
+    - www.primevideo.com
+    - www.tiktok.com
+    - www.instagram.com
+    - www.ripe.net
+    - www.ams-ix.net
+    - www.de-cix.net
+    - www.equinix.com
+    - www.tim.it
+    - www.vodafone.it
+    - www.fastweb.it
+    - www.iliad.it
+    - www.windtre.it
+    - www.poste.it
+    - www.inps.it
+    - www.agenziaentrate.gov.it
+    - www.icann.org
+    - www.iana.org
     
   dns_queries_per_domain: 70
   traceroute_targets:
