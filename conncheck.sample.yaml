@@ -2,6 +2,18 @@ mode: standard
 privacy: standard
 output_dir: ""
 
+tests:
+  preflight: true
+  lan_health: true
+  dualstack: true
+  dns_benchmark: true
+  mtu_pmtu: true
+  latency: true
+  bufferbloat: true
+  speedtest: true
+  traceroute: true
+  http_check: true
+
 targets:
   ping_targets:
     - 1.1.1.1

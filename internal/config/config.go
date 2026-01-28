@@ -14,6 +14,7 @@ type Config struct {
 	Mode        string        `yaml:"mode"`
 	Privacy     string        `yaml:"privacy"`
 	OutputDir   string        `yaml:"output_dir"`
+	Tests       TestsConfig   `yaml:"tests"`
 	Targets     TargetsConfig `yaml:"targets"`
 	Thresholds  Thresholds    `yaml:"thresholds"`
 	Speedtest   Speedtest     `yaml:"speedtest"`
@@ -29,6 +30,61 @@ type TargetsConfig struct {
 	DNSQueriesPerDomain int      `yaml:"dns_queries_per_domain"`
 	Traceroute          []string `yaml:"traceroute_targets"`
 	MTUTargets          []string `yaml:"mtu_targets"`
+}
+
+type TestsConfig struct {
+	Preflight    *bool `yaml:"preflight"`
+	LANHealth    *bool `yaml:"lan_health"`
+	DualStack    *bool `yaml:"dualstack"`
+	DNSBenchmark *bool `yaml:"dns_benchmark"`
+	MTUPMTU      *bool `yaml:"mtu_pmtu"`
+	Latency      *bool `yaml:"latency"`
+	Bufferbloat  *bool `yaml:"bufferbloat"`
+	Speedtest    *bool `yaml:"speedtest"`
+	Traceroute   *bool `yaml:"traceroute"`
+	HTTPCheck    *bool `yaml:"http_check"`
+}
+
+func (t TestsConfig) WithDefaults() TestsConfig {
+	return TestsConfig{
+		Preflight:    boolPtrOr(t.Preflight, true),
+		LANHealth:    boolPtrOr(t.LANHealth, true),
+		DualStack:    boolPtrOr(t.DualStack, true),
+		DNSBenchmark: boolPtrOr(t.DNSBenchmark, true),
+		MTUPMTU:      boolPtrOr(t.MTUPMTU, true),
+		Latency:      boolPtrOr(t.Latency, true),
+		Bufferbloat:  boolPtrOr(t.Bufferbloat, true),
+		Speedtest:    boolPtrOr(t.Speedtest, true),
+		Traceroute:   boolPtrOr(t.Traceroute, true),
+		HTTPCheck:    boolPtrOr(t.HTTPCheck, true),
+	}
+}
+
+func (t TestsConfig) IsEnabled(testName string) bool {
+	switch testName {
+	case "preflight":
+		return boolValue(t.Preflight, true)
+	case "lan_health":
+		return boolValue(t.LANHealth, true)
+	case "dualstack":
+		return boolValue(t.DualStack, true)
+	case "dns_benchmark":
+		return boolValue(t.DNSBenchmark, true)
+	case "mtu_pmtu":
+		return boolValue(t.MTUPMTU, true)
+	case "latency":
+		return boolValue(t.Latency, true)
+	case "bufferbloat":
+		return boolValue(t.Bufferbloat, true)
+	case "speedtest":
+		return boolValue(t.Speedtest, true)
+	case "traceroute":
+		return boolValue(t.Traceroute, true)
+	case "http_check":
+		return boolValue(t.HTTPCheck, true)
+	default:
+		return true
+	}
 }
 
 type Thresholds struct {
@@ -86,6 +142,18 @@ func Default() Config {
 		Mode:      "standard",
 		Privacy:   "standard",
 		OutputDir: "",
+		Tests: TestsConfig{
+			Preflight:    boolPtr(true),
+			LANHealth:    boolPtr(true),
+			DualStack:    boolPtr(true),
+			DNSBenchmark: boolPtr(true),
+			MTUPMTU:      boolPtr(true),
+			Latency:      boolPtr(true),
+			Bufferbloat:  boolPtr(true),
+			Speedtest:    boolPtr(true),
+			Traceroute:   boolPtr(true),
+			HTTPCheck:    boolPtr(true),
+		},
 		Targets: TargetsConfig{
 			PingTargets:         []string{"1.1.1.1", "8.8.8.8"},
 			DNSServers:          []string{"1.1.1.1", "8.8.8.8", "9.9.9.9"},
@@ -244,5 +312,24 @@ func Load(path string) (Config, error) {
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return Config{}, err
 	}
+	cfg.Tests = cfg.Tests.WithDefaults()
 	return cfg, nil
+}
+
+func boolPtr(value bool) *bool {
+	return &value
+}
+
+func boolPtrOr(value *bool, fallback bool) *bool {
+	if value != nil {
+		return value
+	}
+	return boolPtr(fallback)
+}
+
+func boolValue(value *bool, fallback bool) bool {
+	if value != nil {
+		return *value
+	}
+	return fallback
 }
