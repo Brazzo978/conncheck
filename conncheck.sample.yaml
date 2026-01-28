@@ -24,7 +24,12 @@ targets:
     - www.theverge.com
     - www.ofmodemsandmen.com
     - old.reddit.com
-  dns_queries_per_domain: 3
+    - retn.net
+    - www.arelion.com
+    - bgp.tools
+    - www.lumen.com
+    
+  dns_queries_per_domain: 70
   traceroute_targets:
     - 1.1.1.1
     - 8.8.8.8
