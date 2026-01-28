@@ -8,12 +8,22 @@ targets:
     - 8.8.8.8
   dns_servers:
     - 1.1.1.1
+    - 1.0.0.1
     - 8.8.8.8
+    - 8.8.4.4
     - 9.9.9.9
+    - 9.9.9.10
+    - 94.140.14.14
+    - 94.140.15.15
+    - 62.192.153.242
+    - 62.192.153.243
   dns_domains:
     - www.google.com
-    - www.cloudflare.com
+    - www.eolo.it
     - www.wikipedia.org
+    - www.theverge.com
+    - www.ofmodemsandmen.com
+    - old.reddit.com
   traceroute_targets:
     - 1.1.1.1
     - 8.8.8.8
@@ -28,16 +38,10 @@ speedtest:
       - 60884 # CDLAN - Milan, Italy | Trace: speedtest.cdlan.net
       - 4302  # Vodafone IT - Milan, Italy | Trace: speedtest.vodafone.it
     runs: 2
-    weight: 1
-
-  # LOCAL variant: Centro Italia (enable if needed)
-  # local_center:
-  #   server_ids: []
-  #   runs: 2
-  #   weight: 1
+    weight: 1,6
 
   # LOCAL variant: Sud Italia (enable if needed)
-  # local_south:
+  # local:
   #   server_ids: []
   #   runs: 2
   #   weight: 1
@@ -47,7 +51,7 @@ speedtest:
       - 3243  # TIM SpA - Rome, Italy | Trace: speedtestrm1.telecomitalia.it
       - 11427 # EOLO - Milan, Italy | Trace: test.eolo.it
     runs: 2
-    weight: 1
+    weight: 1,4
 
   eu:
     server_ids:
@@ -57,7 +61,7 @@ speedtest:
       # - 35692 # Clouvider - Frankfurt am Main, Germany | Trace: fra.speedtest.clouvider.net
       # - 35058 # Clouvider - Amsterdam, Netherlands | Trace: ams.speedtest.clouvider.net
     runs: 1
-    weight: 1
+    weight: 1,2
 
   us:
     server_ids:
