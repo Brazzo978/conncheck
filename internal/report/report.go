@@ -92,6 +92,7 @@ type dnsBenchView struct {
 	Domains   []string
 	Servers   []dnsServerView
 	MaxAvgMs  float64
+	Summary   string
 }
 
 type dnsServerView struct {
@@ -246,6 +247,7 @@ func buildDNSView(result model.Result) *dnsBenchView {
 	if domains, ok := dnsResult.Metrics["dns_domains"]; ok && domains != "" {
 		view.Domains = strings.Split(domains, ",")
 	}
+	configuredServers := splitList(dnsResult.Metrics["dhcp_dns_servers"])
 
 	avgValues := map[string]float64{}
 	successValues := map[string]int{}
@@ -298,7 +300,85 @@ func buildDNSView(result model.Result) *dnsBenchView {
 	if len(view.Servers) > 0 {
 		view.Available = true
 	}
+
+	view.Summary = buildDNSSummary(configuredServers, view.Servers)
 	return view
+}
+
+func buildDNSSummary(configuredServers []string, servers []dnsServerView) string {
+	if len(configuredServers) == 0 || len(servers) == 0 {
+		return ""
+	}
+
+	configuredSet := map[string]bool{}
+	for _, server := range configuredServers {
+		if server == "" {
+			continue
+		}
+		configuredSet[server] = true
+	}
+
+	configuredTotal := 0.0
+	configuredCount := 0
+	for _, server := range servers {
+		if configuredSet[server.Server] {
+			configuredTotal += server.AvgMs
+			configuredCount++
+		}
+	}
+	if configuredCount == 0 {
+		return ""
+	}
+	configuredAvg := configuredTotal / float64(configuredCount)
+
+	faster := []dnsServerView{}
+	bestAvg := configuredAvg
+	for _, server := range servers {
+		if server.AvgMs < bestAvg {
+			bestAvg = server.AvgMs
+		}
+		if server.AvgMs < configuredAvg && !configuredSet[server.Server] {
+			faster = append(faster, server)
+		}
+	}
+
+	if len(faster) == 0 {
+		return "Complimenti: hai il server DNS migliore già configurato."
+	}
+
+	sort.Slice(faster, func(i, j int) bool {
+		return faster[i].AvgMs < faster[j].AvgMs
+	})
+	alternativeNames := make([]string, 0, len(faster))
+	for _, server := range faster {
+		alternativeNames = append(alternativeNames, server.Server)
+	}
+
+	diffPct := (configuredAvg - bestAvg) / configuredAvg * 100
+	if diffPct < 0 {
+		diffPct = 0
+	}
+	return fmt.Sprintf(
+		"Il DNS configurato attualmente in media è %.0f%% meno veloce di queste alternative misurate: %s.",
+		math.Round(diffPct),
+		strings.Join(alternativeNames, ", "),
+	)
+}
+
+func splitList(value string) []string {
+	if value == "" {
+		return nil
+	}
+	parts := strings.Split(value, ",")
+	results := make([]string, 0, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed == "" {
+			continue
+		}
+		results = append(results, trimmed)
+	}
+	return results
 }
 
 const htmlTemplate = `<!doctype html>
@@ -415,6 +495,9 @@ small { color: #6b7280; }
 <section>
   <h2>DNS Benchmark</h2>
   {{ if .DNS.Available }}
+  {{ if .DNS.Summary }}
+  <p><strong>{{ .DNS.Summary }}</strong></p>
+  {{ end }}
   {{ if .DNS.Domains }}
   <p><small>Domains: {{ range $index, $domain := .DNS.Domains }}{{ if $index }}, {{ end }}{{ $domain }}{{ end }}</small></p>
   {{ end }}
