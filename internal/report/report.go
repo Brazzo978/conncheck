@@ -35,7 +35,9 @@ func WriteXML(outDir string, result model.Result) (string, error) {
 }
 
 func WriteHTML(outDir string, result model.Result, cfg config.Config) (string, error) {
-	tpl := template.Must(template.New("report").Parse(htmlTemplate))
+	tpl := template.Must(template.New("report").Funcs(template.FuncMap{
+		"mulPercent": mulPercent,
+	}).Parse(htmlTemplate))
 	path := filepath.Join(outDir, "report.html")
 	file, err := os.Create(path)
 	if err != nil {
@@ -47,6 +49,7 @@ func WriteHTML(outDir string, result model.Result, cfg config.Config) (string, e
 		Result:    result,
 		Speedtest: buildSpeedtestView(result, cfg.SpeedtestUI),
 		DNS:       buildDNSView(result),
+		MTU:       buildMTUView(result),
 	}
 	if err := tpl.Execute(file, view); err != nil {
 		return "", err
@@ -58,6 +61,7 @@ type reportView struct {
 	model.Result
 	Speedtest *speedtestView
 	DNS       *dnsBenchView
+	MTU       *mtuView
 }
 
 type speedtestView struct {
@@ -101,6 +105,26 @@ type dnsServerView struct {
 	Percent float64
 	Success int
 	Fail    int
+}
+
+type mtuView struct {
+	Available     bool
+	LocalMTU      int
+	PMTUMin       int
+	SuggestedMTU  int
+	MSSClass      string
+	Blackhole     string
+	Health        string
+	TargetsTested []string
+	Details       []pmtuDetailView
+	MaxValue      int
+}
+
+type pmtuDetailView struct {
+	Target  string
+	Stack   string
+	Value   int
+	Percent float64
 }
 
 func buildSpeedtestView(result model.Result, cfg config.SpeedtestUI) *speedtestView {
@@ -149,6 +173,18 @@ func metricFloat(metrics model.StringMap, key string) (float64, bool) {
 		return 0, false
 	}
 	parsed, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return 0, false
+	}
+	return parsed, true
+}
+
+func metricInt(metrics model.StringMap, key string) (int, bool) {
+	value, ok := metrics[key]
+	if !ok {
+		return 0, false
+	}
+	parsed, err := strconv.Atoi(value)
 	if err != nil {
 		return 0, false
 	}
@@ -381,6 +417,105 @@ func splitList(value string) []string {
 	return results
 }
 
+func buildMTUView(result model.Result) *mtuView {
+	var mtuResult *model.TestResult
+	for _, test := range result.Tests {
+		if test.Name == "mtu_pmtu" {
+			mtuResult = &test
+			break
+		}
+	}
+	if mtuResult == nil {
+		return nil
+	}
+
+	view := &mtuView{
+		Blackhole: mtuResult.Metrics["blackhole_mtu"],
+		Health:    mtuResult.Metrics["mtu_health"],
+		MSSClass:  mtuResult.Metrics["mss_class"],
+	}
+
+	if value, ok := metricInt(mtuResult.Metrics, "local_mtu"); ok {
+		view.LocalMTU = value
+	}
+	if value, ok := metricInt(mtuResult.Metrics, "pmtu_min"); ok {
+		view.PMTUMin = value
+	}
+	if value, ok := metricInt(mtuResult.Metrics, "pmtu_suggested_mtu"); ok {
+		view.SuggestedMTU = value
+	}
+	view.TargetsTested = splitList(mtuResult.Metrics["pmtu_targets_tested"])
+
+	details := splitDetails(mtuResult.Metrics["pmtu_details"])
+	view.Details = append(view.Details, details...)
+
+	view.MaxValue = maxMTU(view.LocalMTU, view.PMTUMin, view.SuggestedMTU)
+	if view.MaxValue == 0 {
+		view.MaxValue = 1500
+	}
+	if view.MaxValue < 1500 {
+		view.MaxValue = 1500
+	}
+	if view.MaxValue > 0 {
+		for i := range view.Details {
+			view.Details[i].Percent = float64(view.Details[i].Value) / float64(view.MaxValue) * 100
+		}
+	}
+	if view.LocalMTU > 0 || view.PMTUMin > 0 || len(view.Details) > 0 {
+		view.Available = true
+	}
+	return view
+}
+
+func maxMTU(values ...int) int {
+	max := 0
+	for _, value := range values {
+		if value > max {
+			max = value
+		}
+	}
+	return max
+}
+
+func splitDetails(value string) []pmtuDetailView {
+	if value == "" {
+		return nil
+	}
+	parts := strings.Split(value, ";")
+	results := make([]pmtuDetailView, 0, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed == "" {
+			continue
+		}
+		section := strings.SplitN(trimmed, "=", 2)
+		if len(section) != 2 {
+			continue
+		}
+		mtuValue, err := strconv.Atoi(section[1])
+		if err != nil {
+			continue
+		}
+		targetParts := strings.SplitN(section[0], "/", 2)
+		if len(targetParts) != 2 {
+			continue
+		}
+		results = append(results, pmtuDetailView{
+			Target: targetParts[0],
+			Stack:  targetParts[1],
+			Value:  mtuValue,
+		})
+	}
+	return results
+}
+
+func mulPercent(value, max int) float64 {
+	if max <= 0 {
+		return 0
+	}
+	return float64(value) / float64(max) * 100
+}
+
 const htmlTemplate = `<!doctype html>
 <html lang="en">
 <head>
@@ -408,9 +543,25 @@ section { background: #fff; padding: 16px; margin-top: 16px; border-radius: 12px
 .dns-row { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
 .dns-label { width: 180px; font-weight: 600; }
 .dns-bar { position: relative; flex: 1; height: 24px; background: #e5e7eb; border-radius: 999px; overflow: hidden; }
-.dns-bar-fill { height: 100%; background: #60a5fa; border-radius: 999px; }
+.dns-bar-fill { height: 100%; background: #60a5fa; border-radius: 999px; width: 0; animation: fill-bar 1.2s ease forwards; }
 .dns-bar span { position: absolute; left: 10px; top: 3px; font-size: 12px; color: #111827; }
+.mtu-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 12px; }
+.mtu-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: #eef2ff; color: #1e3a8a; font-size: 12px; font-weight: 600; }
+.mtu-pill.warn { background: #fef3c7; color: #92400e; }
+.mtu-pill.bad { background: #fee2e2; color: #991b1b; }
+.mtu-meter { margin-top: 10px; }
+.mtu-meter-label { font-weight: 600; margin-bottom: 6px; }
+.mtu-bar { position: relative; height: 22px; background: #e5e7eb; border-radius: 999px; overflow: hidden; }
+.mtu-bar-fill { height: 100%; border-radius: 999px; width: 0; animation: fill-bar 1.2s ease forwards; }
+.mtu-bar-fill.primary { background: #34d399; }
+.mtu-bar-fill.secondary { background: #60a5fa; }
+.mtu-bar-fill.accent { background: #fbbf24; }
+.mtu-bar span { position: absolute; left: 10px; top: 2px; font-size: 12px; color: #111827; }
+.mtu-details { margin-top: 12px; }
+.mtu-details .card { margin-top: 8px; }
+.stack-tag { font-size: 11px; padding: 2px 6px; border-radius: 999px; background: #e0f2fe; color: #0369a1; }
 @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.02); } 100% { transform: scale(1); } }
+@keyframes fill-bar { to { width: var(--target, 0%); } }
 small { color: #6b7280; }
 </style>
 </head>
@@ -506,7 +657,7 @@ small { color: #6b7280; }
     <div class="dns-row">
       <div class="dns-label">{{ .Server }}</div>
       <div class="dns-bar">
-        <div class="dns-bar-fill" style="width: {{ printf "%.0f" .Percent }}%;"></div>
+        <div class="dns-bar-fill" style="--target: {{ printf "%.0f" .Percent }}%;"></div>
         <span>{{ printf "%.1f" .AvgMs }} ms ({{ .Success }} ok, {{ .Fail }} fail)</span>
       </div>
     </div>
@@ -514,6 +665,76 @@ small { color: #6b7280; }
   </div>
   {{ else }}
   <p>DNS benchmark non disponibile o senza dati sufficienti.</p>
+  {{ end }}
+</section>
+{{ end }}
+{{ if .MTU }}
+<section>
+  <h2>MTU &amp; PMTU</h2>
+  {{ if .MTU.Available }}
+  <div class="mtu-grid">
+    <div class="card">
+      <h3>Stato MTU</h3>
+      <p>
+        <span class="mtu-pill {{ if eq .MTU.Health "OK" }}{{ else if eq .MTU.Health "WARN" }}warn{{ else }}bad{{ end }}">Health: {{ .MTU.Health }}</span>
+        {{ if .MTU.Blackhole }}
+        <span class="mtu-pill {{ if eq .MTU.Blackhole "probable" }}bad{{ else }}{{ end }}">Blackhole: {{ .MTU.Blackhole }}</span>
+        {{ end }}
+      </p>
+      {{ if .MTU.MSSClass }}
+      <p><small>MSS: {{ .MTU.MSSClass }}</small></p>
+      {{ end }}
+      {{ if .MTU.TargetsTested }}
+      <p><small>Targets testati: {{ range $index, $target := .MTU.TargetsTested }}{{ if $index }}, {{ end }}{{ $target }}{{ end }}</small></p>
+      {{ end }}
+    </div>
+    <div class="card">
+      <h3>Valori principali</h3>
+      {{ if gt .MTU.LocalMTU 0 }}
+      <div class="mtu-meter">
+        <div class="mtu-meter-label">MTU locale: {{ .MTU.LocalMTU }}</div>
+        <div class="mtu-bar">
+          <div class="mtu-bar-fill primary" style="--target: {{ printf "%.0f" (mulPercent .MTU.LocalMTU .MTU.MaxValue) }}%;"></div>
+          <span>{{ .MTU.LocalMTU }}</span>
+        </div>
+      </div>
+      {{ end }}
+      {{ if gt .MTU.PMTUMin 0 }}
+      <div class="mtu-meter">
+        <div class="mtu-meter-label">PMTU minimo: {{ .MTU.PMTUMin }}</div>
+        <div class="mtu-bar">
+          <div class="mtu-bar-fill secondary" style="--target: {{ printf "%.0f" (mulPercent .MTU.PMTUMin .MTU.MaxValue) }}%;"></div>
+          <span>{{ .MTU.PMTUMin }}</span>
+        </div>
+      </div>
+      {{ end }}
+      {{ if gt .MTU.SuggestedMTU 0 }}
+      <div class="mtu-meter">
+        <div class="mtu-meter-label">Suggerito: {{ .MTU.SuggestedMTU }}</div>
+        <div class="mtu-bar">
+          <div class="mtu-bar-fill accent" style="--target: {{ printf "%.0f" (mulPercent .MTU.SuggestedMTU .MTU.MaxValue) }}%;"></div>
+          <span>{{ .MTU.SuggestedMTU }}</span>
+        </div>
+      </div>
+      {{ end }}
+    </div>
+  </div>
+  {{ if .MTU.Details }}
+  <div class="mtu-details">
+    <h3>Dettaglio PMTU per target</h3>
+    {{ range .MTU.Details }}
+    <div class="card">
+      <div><strong>{{ .Target }}</strong> <span class="stack-tag">{{ .Stack }}</span></div>
+      <div class="mtu-bar" style="margin-top: 8px;">
+        <div class="mtu-bar-fill secondary" style="--target: {{ printf "%.0f" .Percent }}%;"></div>
+        <span>{{ .Value }}</span>
+      </div>
+    </div>
+    {{ end }}
+  </div>
+  {{ end }}
+  {{ else }}
+  <p>MTU non disponibile o senza dati sufficienti.</p>
   {{ end }}
 </section>
 {{ end }}
