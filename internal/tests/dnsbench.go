@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"conncheck/internal/config"
@@ -75,33 +76,64 @@ func (d *DNSBench) Run(ctx context.Context) model.TestResult {
 		return result
 	}
 
+	type serverResult struct {
+		server  string
+		success int
+		fail    int
+		avgMs   float64
+		hasAvg  bool
+	}
+
+	results := make(chan serverResult, len(allServers))
+	var wg sync.WaitGroup
+
+	for _, server := range allServers {
+		wg.Add(1)
+		go func(server string) {
+			defer wg.Done()
+			serverSuccess := 0
+			serverFail := 0
+			var totalLatency time.Duration
+			for _, domain := range domains {
+				for i := 0; i < queriesPerDomain; i++ {
+					latency, err := dnsLookupLatency(ctx, server, domain, 2*time.Second)
+					if err != nil {
+						serverFail++
+						continue
+					}
+					serverSuccess++
+					totalLatency += latency
+				}
+			}
+
+			result := serverResult{
+				server:  server,
+				success: serverSuccess,
+				fail:    serverFail,
+			}
+			if serverSuccess > 0 {
+				result.avgMs = float64(totalLatency.Milliseconds()) / float64(serverSuccess)
+				result.hasAvg = true
+			}
+			results <- result
+		}(server)
+	}
+
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
 	totalSuccess := 0
 	totalFail := 0
-	for _, server := range allServers {
-		serverSuccess := 0
-		serverFail := 0
-		var totalLatency time.Duration
-		for _, domain := range domains {
-			for i := 0; i < queriesPerDomain; i++ {
-				latency, err := dnsLookupLatency(ctx, server, domain, 2*time.Second)
-				if err != nil {
-					serverFail++
-					continue
-				}
-				serverSuccess++
-				totalLatency += latency
-			}
+	for serverResult := range results {
+		totalSuccess += serverResult.success
+		totalFail += serverResult.fail
+		if serverResult.hasAvg {
+			result.Metrics[fmt.Sprintf("dns_avg_ms.%s", serverResult.server)] = fmt.Sprintf("%.2f", serverResult.avgMs)
 		}
-
-		totalSuccess += serverSuccess
-		totalFail += serverFail
-
-		if serverSuccess > 0 {
-			avgMs := float64(totalLatency.Milliseconds()) / float64(serverSuccess)
-			result.Metrics[fmt.Sprintf("dns_avg_ms.%s", server)] = fmt.Sprintf("%.2f", avgMs)
-		}
-		result.Metrics[fmt.Sprintf("dns_success.%s", server)] = strconv.Itoa(serverSuccess)
-		result.Metrics[fmt.Sprintf("dns_fail.%s", server)] = strconv.Itoa(serverFail)
+		result.Metrics[fmt.Sprintf("dns_success.%s", serverResult.server)] = strconv.Itoa(serverResult.success)
+		result.Metrics[fmt.Sprintf("dns_fail.%s", serverResult.server)] = strconv.Itoa(serverResult.fail)
 	}
 
 	result.Metrics["dns_success_total"] = strconv.Itoa(totalSuccess)
