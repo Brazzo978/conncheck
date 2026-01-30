@@ -63,6 +63,7 @@ func ParsePing(output string) PingStats {
 
 func toInt(value string) int {
 	value = strings.TrimSpace(value)
+	value = strings.ReplaceAll(value, ",", ".")
 	parts := strings.Split(value, ".")
 	if len(parts) == 0 {
 		return 0
