@@ -8,7 +8,7 @@ tests:
   dualstack: false  #bad implementation yet
   dns_benchmark: true
   mtu_pmtu: true
-  latency: false #bad implementation yet
+  latency: true
   bufferbloat: false #bad implementation yet
   speedtest: true
   traceroute: false #bad implementation yet
@@ -18,6 +18,8 @@ targets:
   ping_targets:
     - 1.1.1.1
     - 8.8.8.8
+    - 94.140.14.14
+    - 9.9.9.9
   dns_servers:
     - 1.1.1.1
     - 1.0.0.1
