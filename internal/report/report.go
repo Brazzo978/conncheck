@@ -37,8 +37,6 @@ func WriteXML(outDir string, result model.Result) (string, error) {
 func WriteHTML(outDir string, result model.Result, cfg config.Config) (string, error) {
 	tpl := template.Must(template.New("report").Funcs(template.FuncMap{
 		"mulPercent": mulPercent,
-		"safeID":     safeID,
-		"toJSON":     toJSON,
 	}).Parse(htmlTemplate))
 	path := filepath.Join(outDir, "report.html")
 	file, err := os.Create(path)
@@ -52,7 +50,6 @@ func WriteHTML(outDir string, result model.Result, cfg config.Config) (string, e
 		Speedtest: buildSpeedtestView(result, cfg.SpeedtestUI),
 		DNS:       buildDNSView(result),
 		MTU:       buildMTUView(result),
-		Latency:   buildLatencyView(result),
 	}
 	if err := tpl.Execute(file, view); err != nil {
 		return "", err
@@ -65,7 +62,6 @@ type reportView struct {
 	Speedtest *speedtestView
 	DNS       *dnsBenchView
 	MTU       *mtuView
-	Latency   *latencyView
 }
 
 type speedtestView struct {
@@ -129,28 +125,6 @@ type pmtuDetailView struct {
 	Stack   string
 	Value   int
 	Percent float64
-}
-
-type latencyView struct {
-	Available bool
-	MaxMs     int
-	Targets   []latencyTargetView
-}
-
-type latencyTargetView struct {
-	Target  string              `json:"target"`
-	Color   string              `json:"color"`
-	AvgMs   int                 `json:"avgMs"`
-	MinMs   int                 `json:"minMs"`
-	MaxMs   int                 `json:"maxMs"`
-	LossPct int                 `json:"lossPct"`
-	Samples []latencySampleView `json:"samples"`
-}
-
-type latencySampleView struct {
-	OffsetMs  int  `json:"t"`
-	LatencyMs int  `json:"latency"`
-	Loss      bool `json:"loss"`
 }
 
 func buildSpeedtestView(result model.Result, cfg config.SpeedtestUI) *speedtestView {
@@ -493,85 +467,6 @@ func buildMTUView(result model.Result) *mtuView {
 	return view
 }
 
-func buildLatencyView(result model.Result) *latencyView {
-	var latencyResult *model.TestResult
-	for _, test := range result.Tests {
-		if test.Name == "latency" {
-			latencyResult = &test
-			break
-		}
-	}
-	if latencyResult == nil {
-		return nil
-	}
-
-	targets := map[string]*latencyTargetView{}
-	maxMs := 0
-	for key, value := range latencyResult.Metrics {
-		if strings.HasPrefix(key, "latency_series.") {
-			target := strings.TrimPrefix(key, "latency_series.")
-			var samples []latencySampleView
-			if err := json.Unmarshal([]byte(value), &samples); err != nil {
-				continue
-			}
-			targetView := &latencyTargetView{
-				Target:  target,
-				Samples: samples,
-			}
-			for _, sample := range samples {
-				if !sample.Loss && sample.LatencyMs > maxMs {
-					maxMs = sample.LatencyMs
-				}
-			}
-			targets[target] = targetView
-		}
-	}
-
-	if len(targets) == 0 {
-		return nil
-	}
-
-	for target, targetView := range targets {
-		if value, ok := metricInt(latencyResult.Metrics, fmt.Sprintf("%s_avg_ms", target)); ok {
-			targetView.AvgMs = value
-		}
-		if value, ok := metricInt(latencyResult.Metrics, fmt.Sprintf("%s_min_ms", target)); ok {
-			targetView.MinMs = value
-		}
-		if value, ok := metricInt(latencyResult.Metrics, fmt.Sprintf("%s_max_ms", target)); ok {
-			targetView.MaxMs = value
-		}
-		if value, ok := metricInt(latencyResult.Metrics, fmt.Sprintf("%s_loss_pct", target)); ok {
-			targetView.LossPct = value
-		}
-	}
-
-	targetList := make([]latencyTargetView, 0, len(targets))
-	for _, targetView := range targets {
-		targetList = append(targetList, *targetView)
-	}
-	sort.Slice(targetList, func(i, j int) bool {
-		return targetList[i].Target < targetList[j].Target
-	})
-
-	palette := []string{"#2563eb", "#16a34a", "#f97316", "#9333ea", "#0891b2", "#dc2626"}
-	for i := range targetList {
-		targetList[i].Color = palette[i%len(palette)]
-	}
-
-	if maxMs == 0 {
-		maxMs = 100
-	} else {
-		maxMs = int(math.Ceil(float64(maxMs)*1.2/10.0) * 10)
-	}
-
-	return &latencyView{
-		Available: true,
-		MaxMs:     maxMs,
-		Targets:   targetList,
-	}
-}
-
 func maxMTU(values ...int) int {
 	max := 0
 	for _, value := range values {
@@ -621,34 +516,6 @@ func mulPercent(value, max int) float64 {
 	return float64(value) / float64(max) * 100
 }
 
-func safeID(value string) string {
-	var b strings.Builder
-	for _, r := range value {
-		switch {
-		case r >= 'a' && r <= 'z':
-			b.WriteRune(r)
-		case r >= 'A' && r <= 'Z':
-			b.WriteRune(r)
-		case r >= '0' && r <= '9':
-			b.WriteRune(r)
-		default:
-			b.WriteRune('-')
-		}
-	}
-	if b.Len() == 0 {
-		return "item"
-	}
-	return b.String()
-}
-
-func toJSON(value any) template.JS {
-	data, err := json.Marshal(value)
-	if err != nil {
-		return template.JS("null")
-	}
-	return template.JS(data)
-}
-
 const htmlTemplate = `<!doctype html>
 <html lang="en">
 <head>
@@ -693,14 +560,6 @@ section { background: #fff; padding: 16px; margin-top: 16px; border-radius: 12px
 .mtu-details { margin-top: 12px; }
 .mtu-details .card { margin-top: 8px; }
 .stack-tag { font-size: 11px; padding: 2px 6px; border-radius: 999px; background: #e0f2fe; color: #0369a1; }
-.latency-chart-wrap { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px; }
-.latency-controls { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
-.latency-legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 13px; }
-.latency-legend-item { display: inline-flex; align-items: center; gap: 6px; }
-.latency-dot { width: 10px; height: 10px; border-radius: 999px; background: var(--dot-color, #111827); display: inline-block; }
-.latency-note { color: #6b7280; font-size: 12px; }
-.latency-button { background: #2563eb; border: none; color: #fff; padding: 6px 12px; border-radius: 999px; cursor: pointer; font-size: 12px; }
-.latency-button:disabled { opacity: 0.6; cursor: not-allowed; }
 @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.02); } 100% { transform: scale(1); } }
 @keyframes fill-bar { to { width: var(--target, 0%); } }
 small { color: #6b7280; }
@@ -806,155 +665,6 @@ small { color: #6b7280; }
   </div>
   {{ else }}
   <p>DNS benchmark non disponibile o senza dati sufficienti.</p>
-  {{ end }}
-</section>
-{{ end }}
-{{ if .Latency }}
-<section>
-  <h2>Monitor Latency (1 minuto, intervallo 100ms)</h2>
-  {{ if .Latency.Available }}
-  <div class="latency-chart-wrap">
-    <div class="latency-controls">
-      <div class="latency-legend">
-        {{ range .Latency.Targets }}
-        <div class="latency-legend-item">
-          <span class="latency-dot" style="--dot-color: {{ .Color }};"></span>
-          <span>{{ .Target }}</span>
-        </div>
-        {{ end }}
-        <div class="latency-legend-item">
-          <span class="latency-dot" style="--dot-color: #dc2626;"></span>
-          <span>Loss</span>
-        </div>
-      </div>
-      <button class="latency-button" id="latency-replay">Replay animazione</button>
-    </div>
-    <canvas id="latency-chart" width="980" height="320"></canvas>
-    <div class="latency-note">La linea mostra la variazione della latenza; i punti rossi indicano packet loss.</div>
-  </div>
-  <div class="grid" style="margin-top: 12px;">
-    {{ range .Latency.Targets }}
-    <div class="card">
-      <h3>{{ .Target }}</h3>
-      <p><strong>Media:</strong> {{ .AvgMs }} ms</p>
-      <p><strong>Min:</strong> {{ .MinMs }} ms | <strong>Max:</strong> {{ .MaxMs }} ms</p>
-      <p><strong>Loss:</strong> {{ .LossPct }}%</p>
-    </div>
-    {{ end }}
-  </div>
-  <script>
-    (() => {
-      const latencyData = {{ toJSON .Latency.Targets }};
-      const maxLatency = {{ .Latency.MaxMs }};
-      const durationMs = 60000;
-      const speedMultiplier = 6;
-      const canvas = document.getElementById("latency-chart");
-      if (!canvas || !latencyData || latencyData.length === 0) {
-        return;
-      }
-      const ctx = canvas.getContext("2d");
-      const padding = { left: 50, right: 20, top: 20, bottom: 30 };
-      const chartWidth = canvas.width - padding.left - padding.right;
-      const chartHeight = canvas.height - padding.top - padding.bottom;
-
-      const drawAxes = () => {
-        ctx.strokeStyle = "#e5e7eb";
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(padding.left, padding.top);
-        ctx.lineTo(padding.left, padding.top + chartHeight);
-        ctx.lineTo(padding.left + chartWidth, padding.top + chartHeight);
-        ctx.stroke();
-
-        ctx.fillStyle = "#6b7280";
-        ctx.font = "12px Segoe UI, sans-serif";
-        ctx.fillText(maxLatency + " ms", 8, padding.top + 6);
-        ctx.fillText("0 ms", 12, padding.top + chartHeight);
-        ctx.fillText("0s", padding.left, padding.top + chartHeight + 20);
-        ctx.fillText("60s", padding.left + chartWidth - 18, padding.top + chartHeight + 20);
-      };
-
-      const mapX = (t) => padding.left + (t / durationMs) * chartWidth;
-      const mapY = (latency) => {
-        const clamped = Math.min(Math.max(latency, 0), maxLatency);
-        return padding.top + chartHeight - (clamped / maxLatency) * chartHeight;
-      };
-
-      let animationFrame = null;
-      let startTime = null;
-
-      const draw = (timestamp) => {
-        if (!startTime) {
-          startTime = timestamp;
-        }
-        const elapsed = (timestamp - startTime) * speedMultiplier;
-        const progress = Math.min(elapsed, durationMs);
-
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        drawAxes();
-
-        latencyData.forEach((series) => {
-          const color = series.color || "#2563eb";
-          ctx.strokeStyle = color;
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          let started = false;
-          series.samples.forEach((sample) => {
-            if (sample.t > progress) {
-              return;
-            }
-            if (sample.loss || sample.latency < 0) {
-              return;
-            }
-            const x = mapX(sample.t);
-            const y = mapY(sample.latency);
-            if (!started) {
-              ctx.moveTo(x, y);
-              started = true;
-            } else {
-              ctx.lineTo(x, y);
-            }
-          });
-          ctx.stroke();
-
-          ctx.fillStyle = "#dc2626";
-          series.samples.forEach((sample) => {
-            if (sample.t > progress) {
-              return;
-            }
-            if (!sample.loss) {
-              return;
-            }
-            const x = mapX(sample.t);
-            const y = mapY(0);
-            ctx.beginPath();
-            ctx.arc(x, y, 3, 0, Math.PI * 2);
-            ctx.fill();
-          });
-        });
-
-        if (progress < durationMs) {
-          animationFrame = window.requestAnimationFrame(draw);
-        }
-      };
-
-      const replay = () => {
-        if (animationFrame) {
-          window.cancelAnimationFrame(animationFrame);
-        }
-        startTime = null;
-        animationFrame = window.requestAnimationFrame(draw);
-      };
-
-      const replayButton = document.getElementById("latency-replay");
-      if (replayButton) {
-        replayButton.addEventListener("click", replay);
-      }
-      replay();
-    })();
-  </script>
-  {{ else }}
-  <p>Monitor latency non disponibile o senza dati sufficienti.</p>
   {{ end }}
 </section>
 {{ end }}
